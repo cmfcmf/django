@@ -127,7 +127,7 @@ class BaseDatabaseSchemaEditor(object):
 
     # Field <-> database mapping functions
 
-    def column_sql(self, model, field, include_default=False):
+    def column_sql(self, model, field, include_default=False, include_primary_and_unique=True):
         """
         Takes a field and returns its column definition.
         The field must already have had set_attributes_from_name called.
@@ -164,10 +164,11 @@ class BaseDatabaseSchemaEditor(object):
         elif not null:
             sql += " NOT NULL"
         # Primary key/unique outputs
-        if field.primary_key:
-            sql += " PRIMARY KEY"
-        elif field.unique:
-            sql += " UNIQUE"
+        if include_primary_and_unique:
+            if field.primary_key:
+                sql += " PRIMARY KEY"
+            elif field.unique:
+                sql += " UNIQUE"
         # Optionally add the tablespace if it's an implicitly indexed column
         tablespace = field.db_tablespace or model._meta.db_tablespace
         if tablespace and self.connection.features.supports_tablespaces and field.unique:
@@ -414,6 +415,7 @@ class BaseDatabaseSchemaEditor(object):
                 "table": self.quote_name(model._meta.db_table),
                 "changes": self.sql_alter_column_no_default % {
                     "column": self.quote_name(field.column),
+                    "definition": self.column_sql(model, field, include_primary_and_unique=False)[0]
                 }
             }
             self.execute(sql)
@@ -591,6 +593,7 @@ class BaseDatabaseSchemaEditor(object):
                         "column": self.quote_name(new_field.column),
                         "type": new_type,
                         "default": self.prepare_default(new_default),
+                        "definition": self.column_sql(model, new_field, include_primary_and_unique=False)[0]
                     },
                     [],
                 ))
@@ -600,6 +603,7 @@ class BaseDatabaseSchemaEditor(object):
                         "column": self.quote_name(new_field.column),
                         "type": new_type,
                         "default": "%s",
+                        "definition": self.column_sql(model, new_field, include_primary_and_unique=False)[0]
                     },
                     [new_default],
                 ))
@@ -753,6 +757,7 @@ class BaseDatabaseSchemaEditor(object):
                 "changes": self.sql_alter_column_no_default % {
                     "column": self.quote_name(new_field.column),
                     "type": new_type,
+                    "definition": self.column_sql(model, new_field, include_primary_and_unique=False)[0]
                 }
             }
             self.execute(sql)
